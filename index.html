@@ -1,0 +1,2499 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://api.themoviedb.org">
+<link rel="preconnect" href="https://image.tmdb.org" crossorigin>
+<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
+<link rel="preload" as="image" href="https://raw.githubusercontent.com/ibuntc3-create/Bulv/main/1789177587347.jpg" fetchpriority="high">
+<title>MoviePro - The Runner</title>
+<style>
+  :root{
+    --bg:#000000;
+    --red:#e5122a;
+    --grey:#8a8a8e;
+    --lightgrey:#c7c7cc;
+    --card-radius:10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  a, button, .action, .player-center, .search-btn, .pill{
+    outline:none;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;
+  }
+  a:focus, button:focus, .action:focus, .player-center:focus, .search-btn:focus{
+    outline:none;
+  }
+  html,body{
+    background:var(--bg);
+    color:#fff;
+    font-family:-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow-x:clip; 
+    width:100%;
+  }
+  .app{
+    width:100%;
+    min-height:100vh;
+    background:#000;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* header / logo bar */
+  .site-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:9px 14px;
+    background:#0c0c0d;
+    border-bottom:1px solid #1e1e20;
+  }
+  .site-header .brand{
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .site-logo{
+    width:24px;
+    height:24px;
+    border-radius:6px;
+    background:var(--red);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .site-logo svg{width:12px; height:12px;}
+  .site-name{
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:0.2px;
+    color:#fff;
+  }
+  .site-name span{color:var(--red);}
+  .search-btn{
+    position:relative;
+    width:38px;
+    height:38px;
+    border-radius:9px;
+    border:2px solid var(--red);
+    background:linear-gradient(160deg,#2a2a2d,#0b0b0c);
+    box-shadow:0 2px 6px rgba(0,0,0,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    cursor:pointer;
+  }
+  .search-btn:active{ transform:scale(0.86); }
+  .search-btn svg{
+    width:19px; height:19px;
+    color:#fff;
+  }
+  /* soft glowing ring that quietly pulses, same treatment as the sound
+     toggle on the player, so this button catches the eye the same way */
+  .search-btn::before{
+    content:"";
+    position:absolute;
+    inset:-5px;
+    border-radius:12px;
+    border:1.5px solid var(--red);
+    opacity:0;
+    pointer-events:none;
+    animation:searchPulse 2.2s ease-out infinite;
+  }
+  @keyframes searchPulse{
+    0%{ transform:scale(0.9); opacity:0.65; }
+    100%{ transform:scale(1.25); opacity:0; }
+  }
+  .header-ad-slot{
+    width:100%;
+    overflow:hidden;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+
+  /* sticky top block */
+  .top-sticky{
+    position:sticky;
+    top:0;
+    z-index:25;
+    background:var(--bg);
+  }
+
+  /* player */
+  .player{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    margin-top:8px;
+    /* Featured/default slot's backdrop: the CBFC certificate for "Hibla 2".
+       Fixed on purpose — the JS never repaints this (see the `keepBackdrop`
+       flag in applyMovieToHero / fillHero), so it stays exactly this image
+       no matter what plays, and never flashes to anything else first since
+       it's already the CSS default before any script runs. */
+    background-image:linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4) 65%, rgba(0,0,0,0.8)),
+      url('https://raw.githubusercontent.com/ibuntc3-create/Bulv/main/1789177587347.jpg');
+    background-size:cover;
+    background-position:center 30%;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    box-shadow:0 10px 24px rgba(0,0,0,0.75);
+    z-index:2;
+    /* smooth crossfade when a new movie's backdrop swaps in, instead of a
+       hard, jarring cut straight from one image to the next */
+    transition:opacity 0.22s ease;
+  }
+  /* applied the instant a card is tapped, for as long as the new backdrop
+     is still downloading — gives immediate visual feedback that the tap
+     registered (so it never reads as "stuck"/laggy) and turns the eventual
+     swap into a gentle fade instead of a sudden pop */
+  .player.is-loading{
+    opacity:0.55;
+  }
+  .player-bezel{
+    height:5px;
+    background:linear-gradient(90deg, #000, #2a2a2c 50%, #000);
+    box-shadow:0 3px 10px rgba(0,0,0,0.6);
+  }
+  .player-watermark{
+    position:absolute;
+    top:12px; left:14px;
+    font-size:13px;
+    font-weight:800;
+    letter-spacing:1.5px;
+    color:rgba(255,255,255,0.55);
+    text-shadow:0 1px 4px rgba(0,0,0,0.6);
+    z-index:1;
+  }
+  .player-center{
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:46px; height:46px;
+    border-radius:50%;
+    background:rgba(229,18,42,0.35);
+    border:2px solid var(--red);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    text-decoration:none;
+    transition:transform 0.15s ease, background 0.15s ease, opacity 0.3s ease;
+  }
+  .player-center:active{
+    transform:translate(-50%,-50%) scale(0.82);
+    background:rgba(229,18,42,0.65);
+  }
+  .player-center::after{
+    content:"";
+    position:absolute;
+    top:50%; left:50%;
+    width:100%; height:100%;
+    border-radius:50%;
+    border:2px solid var(--red);
+    transform:translate(-50%,-50%) scale(1);
+    opacity:0;
+    pointer-events:none;
+  }
+  .player-center:active::after{
+    animation:playPulse 0.5s ease-out;
+  }
+  @keyframes playPulse{
+    0%{ transform:translate(-50%,-50%) scale(1); opacity:0.9; }
+    100%{ transform:translate(-50%,-50%) scale(1.9); opacity:0; }
+  }
+  .player-center svg{
+    width:16px; height:16px;
+    margin-left:2px;
+  }
+  .player-controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0 12px 12px;
+  }
+  .play-icon-btn{
+    width:0; height:0;
+    border-top:7px solid transparent;
+    border-bottom:7px solid transparent;
+    border-left:12px solid var(--red);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .seekbar{
+    flex:1;
+    height:3px;
+    background:#4d4d4d;
+    border-radius:2px;
+    position:relative;
+  }
+  .seekbar .fill{
+    position:absolute;
+    left:0; top:0;
+    height:100%;
+    width:14%;
+    background:var(--red);
+    border-radius:2px;
+  }
+  .seekbar .thumb{
+    position:absolute;
+    left:14%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    width:11px; height:11px;
+    border-radius:50%;
+    background:var(--red);
+    box-shadow:0 0 0 2px #fff;
+  }
+  .time{
+    font-size:11.5px;
+    color:#eee;
+    flex-shrink:0;
+    letter-spacing:0.3px;
+  }
+  .pip-icon, .fullscreen-icon{
+    width:16px; height:16px;
+    flex-shrink:0;
+    cursor:pointer;
+  }
+
+  /* play source pills */
+  .play-sources{
+    display:flex;
+    gap:10px;
+    padding:16px 16px 0;
+    overflow-x:auto;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+    scroll-behavior:smooth;
+  }
+  .play-sources::-webkit-scrollbar{display:none;}
+  .pill{
+    flex-shrink:0;
+    padding:10px 18px;
+    border-radius:24px;
+    font-size:14.5px;
+    border:1.4px solid var(--red);
+    color:var(--red);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    white-space:nowrap;
+  }
+  .pill.active{
+    background:var(--red);
+    color:#fff;
+    border-color:var(--red);
+  }
+  .signal-icon{display:flex; align-items:flex-end; gap:1.5px; height:11px;}
+  .signal-icon span{width:2.5px; background:#fff; border-radius:1px;}
+  .signal-icon span:nth-child(1){height:35%;}
+  .signal-icon span:nth-child(2){height:60%;}
+  .signal-icon span:nth-child(3){height:85%;}
+  .signal-icon span:nth-child(4){height:100%;}
+
+  /* movie info row */
+  .movie-info{
+    display:flex;
+    gap:10px;
+    padding:16px 14px 0;
+  }
+  .poster-thumb{
+    width:52px;
+    height:74px;
+    border-radius:6px;
+    flex-shrink:0;
+    background:linear-gradient(160deg,#0f3d5c 0%,#123a52 45%,#1a1a1a 100%);
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding-bottom:4px;
+  }
+  .poster-thumb .figure{
+    position:absolute;
+    bottom:6px; left:50%;
+    transform:translateX(-50%);
+    width:18px; height:32px;
+    background:linear-gradient(180deg,#2f6f8f,#0d2c3d);
+    border-radius:8px 8px 2px 2px;
+  }
+  .poster-thumb .logo{
+    font-size:7px;
+    font-weight:800;
+    letter-spacing:0.4px;
+    color:#fff;
+    text-transform:uppercase;
+    text-align:center;
+    z-index:1;
+  }
+  .info-main{
+    flex:1;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .info-ad-slot{
+    flex:1;
+    min-width:0;
+    max-height:74px; 
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .title-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .info-text h1{
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:4px;
+    color:#fff;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .title-row h1{
+    margin-bottom:0;
+    flex:1;
+    min-width:0;
+  }
+  .info-text .date{
+    font-size:11.5px;
+    color:var(--grey);
+  }
+
+  /* sound on/off toggle — sits in the top-right corner of the video box */
+  .sound-toggle{
+    position:absolute;
+    top:10px;
+    right:12px;
+    z-index:20;
+    flex-shrink:0;
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    border:2px solid var(--red);
+    background:linear-gradient(160deg,#2a2a2d,#0b0b0c);
+    box-shadow:0 2px 6px rgba(0,0,0,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    cursor:pointer;
+    color:#fff;
+    transition:transform .15s ease, border-color .2s ease, background .2s ease;
+    /* let the button's own pointer handlers move it, instead of the
+       browser turning a touch-drag on it into a page scroll */
+    touch-action:none;
+  }
+  .sound-toggle:active{ transform:scale(0.86); }
+  /* while being dragged: no click-scale, slightly lifted so it's clear
+     it's "picked up" rather than being tapped */
+  .sound-toggle.is-dragging{
+    transition:none;
+    transform:scale(1.08);
+    box-shadow:0 4px 14px rgba(0,0,0,0.7);
+  }
+  .sound-toggle.is-dragging:active{ transform:scale(1.08); }
+  .sound-toggle svg{ width:19px; height:19px; display:block; }
+  .sound-toggle .icon-sound-off{ display:none; }
+  .sound-toggle.is-muted .icon-sound-on{ display:none; }
+  .sound-toggle.is-muted .icon-sound-off{ display:block; }
+  .sound-toggle.is-muted{
+    border-color:#8a8a8e;
+    background:linear-gradient(160deg,#1c1c1e,#0b0b0c);
+    color:#e5e5e7;
+  }
+  /* soft glowing ring that quietly pulses while sound is on, so it reads
+     at a glance as "this is the sound control" rather than a random icon */
+  .sound-toggle::before{
+    content:"";
+    position:absolute;
+    inset:-5px;
+    border-radius:50%;
+    border:1.5px solid var(--red);
+    opacity:0;
+    pointer-events:none;
+  }
+  .sound-toggle:not(.is-muted)::before{
+    animation:soundPulse 2.2s ease-out infinite;
+  }
+  @keyframes soundPulse{
+    0%{ transform:scale(0.82); opacity:0.65; }
+    100%{ transform:scale(1.4); opacity:0; }
+  }
+  .rating-box{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    align-self:stretch;
+  }
+  .rating-divider{
+    width:1px;
+    align-self:stretch;
+    background:#3a3a3c;
+  }
+  .rating-num{
+    font-size:16px;
+    font-weight:600;
+    color:#fff;
+  }
+
+  /* meta rows */
+  .meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:11px 14px 0;
+    font-size:12px;
+    color:var(--lightgrey);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .meta .icon{width:14px; height:14px; flex-shrink:0; color:var(--grey);}
+  .divider-line{
+    height:1px;
+    background:#232325;
+    margin:12px 14px 0;
+  }
+
+  /* action icons */
+  .actions{
+    display:flex;
+    justify-content:space-around;
+    padding:14px 6px;
+    margin:0 0 26px;
+  }
+  .action{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    color:var(--lightgrey);
+    font-size:11px;
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    text-decoration:none;
+  }
+  .action svg{
+    width:19px; height:19px;
+    color:var(--lightgrey);
+    transition:color 0.2s ease, transform 0.4s cubic-bezier(0.34, 1.8, 0.64, 1);
+  }
+  .action span.label{
+    transition:color 0.2s ease;
+  }
+  .action.active svg{color:var(--red);}
+  .action.active span.label{color:var(--red);}
+  .action.bounce svg{
+    transform:scale(1.35);
+  }
+  a.action:active svg{
+    transform:scale(1.3);
+    color:var(--red);
+  }
+  a.action:active span.label{
+    color:var(--red);
+  }
+
+  /* section header */
+  .movie-section{
+    margin:0 0 16px;
+    padding-top:6px;
+    padding-bottom:4px;
+  }
+  .movie-section .carousel{
+    padding-bottom:14px;
+  }
+  .section-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:4px 14px 10px;
+  }
+  .section-header .bar{
+    width:3px;
+    height:16px;
+    background:var(--red);
+    border-radius:2px;
+  }
+  .section-header h2{
+    font-size:15.5px;
+    font-weight:600;
+  }
+
+  /* carousel */
+  .carousel{
+    display:flex;
+    gap:9px;
+    overflow-x:auto;
+    padding:0 14px 18px;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+    scroll-behavior:smooth;
+    content-visibility:auto;
+    contain-intrinsic-size:auto 148px;
+  }
+  .carousel::-webkit-scrollbar{display:none;}
+  .carousel-item{
+    flex-shrink:0;
+    width:calc((100vw - 46px) / 3);
+    contain:layout paint;
+    cursor:pointer;
+  }
+  .carousel-poster{
+    position:relative;
+    width:100%;
+    aspect-ratio:2/3;
+    border-radius:8px;
+    overflow:hidden;
+    background-size:cover;
+    background-position:center;
+    transition:opacity 0.35s ease;
+  }
+  .badge-hd{
+    position:absolute;
+    top:6px; left:6px;
+    background:var(--red);
+    color:#fff;
+    font-size:9px;
+    font-weight:700;
+    padding:1.5px 5px;
+    border-radius:4px;
+  }
+  .badge-rating{
+    position:absolute;
+    bottom:6px; right:6px;
+    background:rgba(0,0,0,0.6);
+    color:#ffcc33;
+    font-size:9.5px;
+    font-weight:600;
+    padding:1.5px 5px;
+    border-radius:4px;
+    display:flex;
+    align-items:center;
+    gap:2px;
+  }
+  .badge-lang{
+    position:absolute;
+    bottom:6px; left:6px;
+    background:rgba(0,0,0,0.6);
+    color:#fff;
+    font-size:9px;
+    padding:1.5px 5px;
+    border-radius:4px;
+  }
+  .carousel-title{
+    margin-top:6px;
+    font-size:11.5px;
+    color:#e5e5e7;
+    text-align:center;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .carousel-download{
+    margin-top:6px;
+    width:100%;
+    text-align:center;
+    font-size:11.5px;
+    font-weight:700;
+    color:#fff;
+    background:var(--red);
+    border-radius:6px;
+    padding:7px 0;
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .carousel-download:active{
+    opacity:0.8;
+    transform:scale(0.97);
+  }
+
+  /* nav bar (bottom android) */
+  .navbar{
+    margin-top:auto;
+    display:flex;
+    justify-content:space-around;
+    align-items:center;
+    padding:16px 0 20px;
+  }
+  .nav-square{width:16px; height:16px; border:1.6px solid #ddd; border-radius:3px;}
+  .nav-circle{width:20px; height:20px; border:1.6px solid #ddd; border-radius:50%;}
+  .nav-triangle{
+    width:0; height:0;
+    border-top:8px solid transparent;
+    border-bottom:8px solid transparent;
+    border-right:12px solid #ddd;
+  }
+
+  /* telegram channel button */
+  .telegram-wrap{
+    position:fixed;
+    left:50%;
+    bottom:18px;
+    transform:translateX(-50%);
+    z-index:60;
+    pointer-events:none;
+  }
+  .telegram-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:56px;
+    height:56px;
+    filter:drop-shadow(0 4px 10px rgba(0,0,0,0.55));
+    transition:transform 0.15s ease;
+    pointer-events:auto;
+  }
+  .telegram-btn:active{
+    transform:scale(0.92);
+  }
+  .telegram-btn svg{flex-shrink:0; display:block;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- sticky top block: header + video player stay fixed in place while
+       everything below (title, meta, actions, carousels) scrolls under it -->
+  <div class="top-sticky">
+    <!-- site header / logo -->
+    <div class="site-header">
+      <div class="brand">
+        <div class="site-logo">
+          <svg viewBox="0 0 24 24" fill="#fff"><path d="M5 3l16 9-16 9V3z"/></svg>
+        </div>
+        <div class="site-name" id="siteName"></div>
+      </div>
+      <div class="search-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+    </div>
+
+    <!-- Ad slot -->
+    <div class="header-ad-slot" id="headerAdSlot"></div>
+
+    <!-- video player -->
+    <div class="player" id="heroPlayer">
+      <div class="player-watermark" id="heroWatermark">HIBLA 2</div>
+      <button type="button" class="sound-toggle is-muted" id="soundToggleBtn" aria-pressed="true" aria-label="সাউন্ড বন্ধ আছে, চালু করতে ট্যাপ করুন" title="সাউন্ড অন/অফ">
+        <svg class="icon-sound-on" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M4 9v6h3.6L13 20V4L7.6 9H4z" fill="currentColor" stroke="none"/>
+          <path d="M16.2 8.5a5.2 5.2 0 010 7"/>
+          <path d="M18.8 5.8a9 9 0 010 12.4"/>
+        </svg>
+        <svg class="icon-sound-off" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M4 9v6h3.6L13 20V4L7.6 9H4z" fill="currentColor" stroke="none"/>
+          <line x1="16" y1="9.5" x2="21.5" y2="15"/>
+          <line x1="21.5" y1="9.5" x2="16" y2="15"/>
+        </svg>
+      </button>
+      <div class="player-center" id="heroPlayBtn" role="button" tabindex="0" aria-label="Play">
+        <svg viewBox="0 0 24 24" fill="#fff"><path d="M5 3l16 9-16 9V3z"/></svg>
+      </div>
+      <div class="player-controls">
+        <div class="play-icon-btn"></div>
+        <div class="seekbar"><div class="fill"></div><div class="thumb"></div></div>
+        <span class="time">00:00/02:22:00</span>
+        <svg class="pip-icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="1.5"/><rect x="12" y="11" width="7" height="6" rx="1" fill="#fff"/></svg>
+        <svg class="fullscreen-icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 9V5a2 2 0 012-2h4M21 9V5a2 2 0 00-2-2h-4M3 15v4a2 2 0 002 2h4M21 15v4a2 2 0 01-2 2h-4"/></svg>
+      </div>
+    </div>
+    <div class="player-bezel"></div>
+  </div>
+
+  <!-- movie info -->
+  <div class="movie-info">
+    <div class="poster-thumb" id="heroPoster">
+      <div class="figure"></div>
+      <span class="logo">HIBLA&nbsp;2</span>
+    </div>
+    <div class="info-main">
+      <div class="info-text">
+        <div class="title-row">
+          <h1 id="heroTitle">Hibla 2</h1>
+        </div>
+        <div class="date" id="heroDate">2019-06-26</div>
+      </div>
+      <!-- Ad slot -->
+      <div class="info-ad-slot" id="infoAdSlot"></div>
+    </div>
+  </div>
+
+  <!-- meta -->
+  <div class="meta">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+    <span id="heroMeta">Telugu / Drama &nbsp;•&nbsp; UA / 2019-06-26 /</span>
+  </div>
+  <div class="meta">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="20" height="14" rx="2"/><text x="6" y="15" font-size="8" fill="currentColor" stroke="none" font-weight="700">CC</text></svg>
+    <span>Subtitles:</span>
+  </div>
+
+  <div class="divider-line"></div>
+
+  <!-- actions -->
+  <div class="actions">
+    <div class="action">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z"/></svg>
+      <span class="label">Save</span>
+    </div>
+    <div class="action">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+      <span class="label">Share</span>
+    </div>
+    <a class="action" href="https://manyapostle.com/jw7k2gja?key=6110705c700796d715156d11aa52eab2" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      <span class="label">Download</span>
+    </a>
+        <div class="action" id="trailerBtn" role="button" tabindex="0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l16 9-16 9V3z"/></svg>
+      <span class="label">Trailer</span>
+    </div>
+  </div>
+
+  <!-- filipino picks section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Filipino Picks</h2>
+  </div>
+  <div class="carousel" id="carousel-filipino">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3a0d0d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d5c,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d2f0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#2a2a2a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#1f2d1a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#331a3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">FIL</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- the cheating wife section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>The Cheating Wife</h2>
+  </div>
+  <div class="carousel" id="carousel-cheating-wife">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d1a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f2d3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#2d1a3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d3a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#1a3d2f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#1a0f2d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- korean movies section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Korean</h2>
+  </div>
+  <div class="carousel" id="carousel-korean">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f2d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d1a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d2a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f1a3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#2a0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- trending movies section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Trending Movies</h2>
+  </div>
+  <div class="carousel" id="carousel-trending">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f2d3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#2d3d0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f2d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d2d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#2d0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- hindi movies section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Hindi Movies</h2>
+  </div>
+  <div class="carousel" id="carousel-hindi">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d2a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f1a3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f1a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#1a3d0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d3a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3a0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">HIN</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- popular tv series section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Popular TV Series</h2>
+  </div>
+  <div class="carousel" id="carousel-tv-popular">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#1a0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d1a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d1a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f3a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f1a3a,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3a3d0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">—</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- korean tv series section -->
+  <div class="movie-section">
+  <div class="section-header">
+    <div class="bar"></div>
+    <h2>Korean Series</h2>
+  </div>
+  <div class="carousel" id="carousel-tv-korean">
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d2a0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f0f3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#3d3d0f,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+    <div class="carousel-item">
+      <div class="carousel-poster" style="background:linear-gradient(160deg,#0f3d3d,#0d0d0d 70%);">
+        <span class="badge-hd">HD</span>
+        <span class="badge-lang">KOR</span>
+        <span class="badge-rating">★ -</span>
+      </div>
+      <div class="carousel-title">Loading…</div>
+    </div>
+  </div>
+  </div>
+
+  <div class="telegram-wrap">
+    <a class="telegram-btn" href="https://t.me/nbnmovie" target="_blank" rel="noopener" aria-label="Telegram Channel">
+      <svg viewBox="0 0 240 240" width="56" height="56">
+        <circle cx="120" cy="120" r="120" fill="#29a9eb"/>
+        <path fill="#fff" d="M167.6 72.7 145 178.4c-1.7 7.6-6.2 9.5-12.5 5.9l-34.5-25.4-16.6 16c-1.8 1.8-3.4 3.4-6.9 3.4l2.5-35.1 63.9-57.7c2.8-2.5-.6-3.9-4.3-1.4l-79 49.7-34-10.6c-7.4-2.3-7.5-7.4 1.5-11l133-51.3c6.1-2.3 11.5 1.4 9.5 11.8z"/>
+      </svg>
+    </a>
+  </div>
+
+  <div style="text-align:center; font-size:9.5px; color:#5a5a5c; padding:4px 14px 60px;">
+    Movie data and images provided by TMDb. This product uses the TMDb API but is not endorsed or certified by TMDb.
+  </div>
+
+</div>
+<script>
+(function(){
+  'use strict';
+
+  // ---- resume/ad-state keys, declared up top so the hero-paint guard
+  // below (and everything else) can use them from the very first line ----
+  var AD_URL = 'https://manyapostle.com/jw7k2gja?key=6110705c700796d715156d11aa52eab2'; // ad/monetization link — used by Play and the Download buttons
+  var AUTOPLAY_KEY = 'moviepro_pending_autoplay';
+  var STATE_KEY = 'moviepro_view_state';
+  var currentHeroMovie = null; // whichever movie is currently loaded into the hero box (null = default)
+
+  // ---- site name: derived from the domain this page is served on,
+  // instead of a fixed hardcoded name ----
+  function getSiteNameFromDomain(){
+    var host = window.location.hostname || '';
+    // local testing (file:// or no hostname) -> fall back to something generic
+    if(!host) return 'Site';
+    host = host.replace(/^www\./i, '');       // drop leading "www."
+    var mainPart = host.split('.')[0];        // "example.com" -> "example", "sub.example.com" -> "sub"
+    if(!mainPart) return 'Site';
+    return mainPart.charAt(0).toUpperCase() + mainPart.slice(1);
+  }
+  function applySiteName(){
+    var name = getSiteNameFromDomain();
+    var el = document.getElementById('siteName');
+    if(el) el.textContent = name;
+    // keep whatever comes after " - " in the existing <title>, just swap the site-name part
+    var titleParts = document.title.split(' - ');
+    if(titleParts.length > 1){
+      titleParts[0] = name;
+      document.title = titleParts.join(' - ');
+    } else {
+      document.title = name;
+    }
+  }
+  applySiteName();
+
+  // ---- persistent "pending autoplay" flag ----
+  // Deliberately uses localStorage, NOT sessionStorage, for this one flag.
+  // sessionStorage is tied to the tab's live process — on mobile, if the
+  // visitor spends a while on the ad page (switches apps, locks the phone,
+  // the OS reclaims memory, etc.) the browser can evict/kill the original
+  // tab in the background. When they eventually tap back into it, some
+  // mobile browsers restore the page as a brand-new session, silently
+  // wiping sessionStorage — so the "resume and autoplay" flag would be
+  // gone right when it's needed most. localStorage has no such lifetime:
+  // it's written to disk and survives regardless of how long the visitor
+  // is away, or how many times the browser suspends/kills the tab in
+  // between. It's only ever written right before the ad redirect and
+  // removed the instant it's consumed on return, so it never lingers
+  // beyond that one round trip.
+  function setPendingAutoplay(data){
+    try { localStorage.setItem(AUTOPLAY_KEY, JSON.stringify(data)); } catch(e) { /* storage unavailable, still navigate */ }
+  }
+  function takePendingAutoplay(){
+    var raw = null;
+    try { raw = localStorage.getItem(AUTOPLAY_KEY); } catch(e) { raw = null; }
+    if(raw === null){
+      // BUGFIX: a flag written before this fix would still be sitting in the
+      // old sessionStorage location the first time someone returns after
+      // this update ships — check there too, once, so an in-flight ad trip
+      // isn't silently dropped during the changeover.
+      try { raw = sessionStorage.getItem(AUTOPLAY_KEY); } catch(e) { raw = null; }
+    }
+    if(raw === null) return null;
+    try { localStorage.removeItem(AUTOPLAY_KEY); } catch(e){ /* ignore */ }
+    try { sessionStorage.removeItem(AUTOPLAY_KEY); } catch(e){ /* ignore */ }
+    try { return JSON.parse(raw); } catch(e){ return null; }
+  }
+  function peekPendingAutoplay(){
+    var raw = null;
+    try { raw = localStorage.getItem(AUTOPLAY_KEY); } catch(e) { raw = null; }
+    if(raw === null){
+      try { raw = sessionStorage.getItem(AUTOPLAY_KEY); } catch(e) { raw = null; }
+    }
+    if(raw === null) return null;
+    try { return JSON.parse(raw); } catch(e){ return null; }
+  }
+
+  // BUGFIX: rapid taps between movie cards could race — an older, slower
+  // network/image response landing AFTER a newer one and silently
+  // overwriting the hero with the wrong (stale) movie, which is exactly
+  // the kind of "flicker/shake" glitch this counter prevents. Every hero
+  // paint grabs the current value first; if it's changed by the time its
+  // async work finishes, that stale result is simply dropped.
+  var heroLoadSeq = 0;
+
+  // BUGFIX: guards against a double-tap on Play/Trailer firing the ad
+  // redirect twice in a row (harmless but wasteful, and can feel like a
+  // stutter). Reset on pageshow so returning via back/forward cache works.
+  var adNavigating = false;
+
+  // ---- "Download" button under each movie card -> sends straight to the ad link ----
+  // (kept separate from the card's own click, which loads the movie into the hero player)
+  function attachCarouselDownloadButtons(){
+    document.querySelectorAll('.carousel-item').forEach(function(item){
+      if(item.querySelector('.carousel-download')) return; // already added
+      var btn = document.createElement('div');
+      btn.className = 'carousel-download';
+      btn.textContent = 'Download';
+      btn.setAttribute('role', 'button');
+      btn.setAttribute('tabindex', '0');
+      btn.addEventListener('click', function(e){
+        e.stopPropagation(); // don't also trigger the card's "load into hero" click
+        window.location.href = AD_URL;
+      });
+      btn.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.href = AD_URL;
+        }
+      });
+      item.appendChild(btn);
+    });
+  }
+  attachCarouselDownloadButtons();
+
+  // the browser's own scroll-position restoration can fight with our own
+  // scroll-to-top logic below and cause a visible "jump" (header briefly
+  // scrolled out of view) on reload, replace, or the way back from the ad
+  // — turn it off and pin to the top ourselves, as the very first thing
+  // this script does, before anything else has a chance to paint a frame
+  if('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+
+  /* ---------- tap feedback on action buttons (no forced synchronous layout) ---------- */
+  var actionButtons = document.querySelectorAll('div.action');
+  actionButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var wasActive = btn.classList.contains('active');
+      actionButtons.forEach(function(b){ b.classList.remove('active'); });
+      if(!wasActive) btn.classList.add('active');
+
+      btn.classList.remove('bounce');
+      // two rAFs let the class removal actually paint before re-adding it,
+      // avoiding the offsetWidth forced-reflow trick which can stutter on tap
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          btn.classList.add('bounce');
+          setTimeout(function(){ btn.classList.remove('bounce'); }, 400);
+        });
+      });
+    });
+  });
+
+  /* ---------- TMDB image loading: right-sized, lazy, cached, and never hangs ---------- */
+  var TMDB_KEY = '05902896074695709d7763505bb88b4d';
+  var TMDB_BASE = 'https://api.themoviedb.org/3';
+  // YouTube Data API v3 key — needed to search YouTube itself for a
+  // full-length upload of the movie, not just the trailer. Free to get
+  // from https://console.cloud.google.com (enable "YouTube Data API v3",
+  // create an API key). Leave blank and the site still works fine — it
+  // just skips straight to the trailer fallback, same as before.
+  var YOUTUBE_API_KEY = '';
+  var IMG_CARD = 'https://image.tmdb.org/t/p/w185';   // crisp at 92px @2x, small payload
+  var IMG_THUMB = 'https://image.tmdb.org/t/p/w154';  // hero poster thumb (52px @2x)
+  var IMG_BACKDROP = 'https://image.tmdb.org/t/p/w780'; // plenty for a 430px-wide player
+  var FETCH_TIMEOUT_MS = 8000;
+
+  // TMDB returns bare 2-letter ISO language codes (ko, ja, tl, en...) — map
+  // the common ones to the same short badge style the design already uses
+  // (KOR, JPN, FIL, ENG...), falling back to the raw code for anything else.
+  var LANG_LABELS = { en:'ENG', ko:'KOR', ja:'JPN', tl:'FIL', hi:'HIN', bn:'BAN',
+    es:'SPA', fr:'FRE', zh:'CHI', th:'THA', vi:'VIE', id:'IND', ta:'TAM', te:'TEL' };
+  function langBadge(code){
+    if(!code) return '';
+    var c = ('' + code).toLowerCase();
+    return LANG_LABELS[c] || c.toUpperCase();
+  }
+
+
+  // Cache resolved image URLs for this tab session. This is the key fix for the
+  // "enters site / comes back from an ad / taps play then hits back" jitter:
+  // on a fresh page load (many ad redirects don't restore from bfcache, they
+  // reload the document) the old code re-fetched everything and re-ran the
+  // fade-in on every poster at once, which reads as the whole page "shaking".
+  // With a cache, a return visit paints every already-seen image instantly,
+  // with no network call and no fade animation at all.
+  var CACHE_KEY = 'moviepro_tmdb_cache_v2';
+  var cache = {};
+  try { cache = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}'); } catch(e){ cache = {}; }
+  function persistCache(){
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch(e){ /* storage unavailable, fine */ }
+  }
+
+  // fetch that always settles within FETCH_TIMEOUT_MS and cancels the network
+  // request on timeout, so a slow/blocked API call never leaves the UI hanging
+  function fetchSafe(url){
+    var controller = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function(){ if(controller) controller.abort(); }, FETCH_TIMEOUT_MS);
+    return fetch(url, controller ? { signal: controller.signal } : undefined)
+      .then(function(r){ clearTimeout(timer); return r.ok ? r.json() : null; })
+      .catch(function(){ clearTimeout(timer); return null; });
+  }
+
+  // instant = true means "we already know this image was shown before in this
+  // session" -> paint immediately with no opacity fade, so a return visit
+  // never shows the placeholder-then-fade sequence again
+  function setImage(el, url, instant){
+    if(!el || !url) return;
+    if(instant){
+      el.style.backgroundImage = 'url(' + url + ')';
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.opacity = '1';
+      return;
+    }
+    el.style.opacity = '0';
+    var img = new Image();
+    img.onload = function(){
+      el.style.backgroundImage = 'url(' + url + ')';
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      requestAnimationFrame(function(){ el.style.opacity = '1'; });
+    };
+    img.onerror = function(){ el.style.opacity = '1'; }; // keep gradient placeholder
+    img.src = url;
+  }
+
+  function fillCarousel(container, cfg){
+    if(!container || container.dataset.loaded) return;
+    container.dataset.loaded = '1';
+
+    // BUGFIX: only the poster image ever got updated here before — the
+    // title text, star rating, and language badge stayed on whatever
+    // placeholder was hardcoded in the HTML, so once the real poster
+    // loaded it no longer matched the name/rating/language printed under
+    // it. Centralize painting so every field is kept in sync together.
+    function paintItem(itemEl, m, instant){
+      if(!itemEl || !m) return;
+      var posterEl = itemEl.querySelector('.carousel-poster');
+      var titleEl = itemEl.querySelector('.carousel-title');
+      var ratingEl = itemEl.querySelector('.badge-rating');
+      var langEl = itemEl.querySelector('.badge-lang');
+      if(m.poster) setImage(posterEl, m.poster, instant);
+      if(titleEl && m.title) titleEl.textContent = m.title;
+      if(ratingEl) ratingEl.textContent = '★ ' + (typeof m.rating === 'number' ? m.rating.toFixed(1) : '-');
+      if(langEl) langEl.textContent = m.lang || '';
+      itemEl.dataset.poster = m.poster || '';
+      itemEl.dataset.backdrop = m.backdrop || '';
+      itemEl.dataset.title = m.title || '';
+      itemEl.dataset.id = m.id || ''; // Save ID
+      itemEl.dataset.type = m.type || 'movie'; // 'movie' or 'tv' — decides how the play button embeds it
+    }
+
+    // cached from earlier in this tab session -> paint instantly, no fetch, no fade
+    if(cache[container.id]){
+      var cachedMovies = cache[container.id];
+      var cachedItems = container.querySelectorAll('.carousel-item');
+      cachedItems.forEach(function(itemEl, i){ paintItem(itemEl, cachedMovies[i], true); });
+      return;
+    }
+
+    // "search" categories (a theme/keyword with no clean genre or language
+    // filter, e.g. "The Cheating Wife") query TMDB's text search instead of
+    // /discover — everything else uses /discover with the given params.
+    // cfg.type selects TMDB's /movie or /tv endpoint family — defaults to
+    // 'movie' so every carousel defined before TV support was added keeps
+    // working unchanged without needing to add type explicitly.
+    var mediaType = cfg.type || 'movie';
+    var url = (cfg.mode === 'search')
+      ? (TMDB_BASE + '/search/' + mediaType + '?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(cfg.query || ''))
+      : (TMDB_BASE + '/discover/' + mediaType + '?api_key=' + TMDB_KEY + '&sort_by=popularity.desc' + (cfg.params ? ('&' + cfg.params) : ''));
+
+    fetchSafe(url).then(function(data){
+      var results = (data && data.results) || [];
+      var items = container.querySelectorAll('.carousel-item');
+      var moviesToCache = [];
+      items.forEach(function(itemEl, i){
+        var movie = results[i];
+        if(!movie) return;
+        var m = {
+          poster: movie.poster_path ? (IMG_CARD + movie.poster_path) : '',
+          backdrop: movie.backdrop_path ? (IMG_BACKDROP + movie.backdrop_path) : '',
+          // TV results use `name`/`first_air_date` instead of a movie's
+          // `title`/`release_date` — fall back so both shapes paint correctly.
+          title: movie.title || movie.name || '',
+          id: movie.id,
+          type: mediaType,
+          rating: typeof movie.vote_average === 'number' ? movie.vote_average : null,
+          lang: langBadge(movie.original_language)
+        };
+        paintItem(itemEl, m, false);
+        moviesToCache[i] = m;
+      });
+      if(moviesToCache.length){
+        cache[container.id] = moviesToCache;
+        persistCache();
+      }
+    });
+  }
+
+  function fillHero(){
+    var titleEl = document.getElementById('heroTitle');
+    var title = titleEl ? titleEl.textContent.trim() : '';
+    var player = document.getElementById('heroPlayer');
+    var poster = document.getElementById('heroPoster');
+    var mySeq = ++heroLoadSeq; // claim this hero paint's slot in the race
+
+    // The featured/default slot's backdrop is a fixed, hand-picked image
+    // (the CBFC certificate for "Hibla 2") set once in the CSS default for
+    // #heroPlayer — it is deliberately never touched here or anywhere
+    // downstream (see the `!data.keepBackdrop` guard in applyMovieToHero).
+    function paintHero(posterUrl, instant){
+      if(poster && posterUrl && mySeq === heroLoadSeq) setImage(poster, posterUrl, instant);
+    }
+
+    // cached from earlier in this tab session -> paint instantly, no fetch
+    if(cache.hero){
+      currentHeroMovie = cache.hero; // Restore it to state
+      paintHero(cache.hero.poster, true);
+      return;
+    }
+
+    function applyHero(movie){
+      if(!movie || mySeq !== heroLoadSeq) return; // stale response — a newer hero paint has already started
+      var posterUrl = movie.poster_path ? (IMG_THUMB + movie.poster_path) : null;
+      paintHero(posterUrl, false);
+      
+      var heroData = { poster: posterUrl, id: movie.id, title: movie.title, keepBackdrop: true };
+      currentHeroMovie = heroData; // Save ID to the current movie
+      
+      if(posterUrl || movie.id){
+        cache.hero = heroData;
+        persistCache();
+      }
+    }
+
+    fetchSafe(TMDB_BASE + '/search/movie?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(title))
+      .then(function(data){
+        if(mySeq !== heroLoadSeq) return; // abandoned mid-flight — don't chain a second stale fetch
+        var results = (data && data.results) || [];
+        if(results.length > 0){
+          applyHero(results[0]);
+        } else {
+          return fetchSafe(TMDB_BASE + '/movie/popular?api_key=' + TMDB_KEY).then(function(data2){
+            applyHero(data2 && data2.results && data2.results[0]);
+          });
+        }
+      });
+  }
+
+  // hero is above the fold: load right away — UNLESS we're about to
+  // restore a specific movie (ad return, or a reload/replace mid-browse).
+  // Painting the default here and then overwriting it a moment later is
+  // exactly what causes the visible "jump/shake" on the way back.
+  var willRestore = false;
+  try {
+    var _peek = peekPendingAutoplay();
+    if(!_peek){
+      var _stateRaw = sessionStorage.getItem(STATE_KEY);
+      if(_stateRaw) _peek = JSON.parse(_stateRaw);
+    }
+    willRestore = !!(_peek && (_peek.movie || _peek.hero || _peek.title || _peek.id));
+  } catch(e){ willRestore = false; }
+  if(!willRestore) fillHero();
+
+  /* ---------- click a movie card -> jumps to the player and "plays" it ---------- */
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function formatTime(totalSec){
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = Math.floor(totalSec % 60);
+    return pad2(h) + ':' + pad2(m) + ':' + pad2(s);
+  }
+
+  // swap the little control-bar icon between a play triangle and a pause icon
+  function setControlIcon(el, isPlaying){
+    if(!el) return;
+    if(isPlaying){
+      el.style.width = '3px';
+      el.style.height = '14px';
+      el.style.border = 'none';
+      el.style.background = 'var(--red)';
+      el.style.boxShadow = '6px 0 0 var(--red)';
+      el.style.borderRadius = '1px';
+    } else {
+      el.style.cssText = '';
+    }
+  }
+
+  function startPlayback(player, resumeSeconds){
+    if(!player) return;
+    player.classList.add('is-playing');
+
+    // the big center play button fades out once "playback" begins
+    var centerBtn = player.querySelector('.player-center');
+    clearTimeout(player._fadeTimer);
+    if(centerBtn){
+      centerBtn.style.opacity = '1';
+      player._fadeTimer = setTimeout(function(){ centerBtn.style.opacity = '0'; }, 450);
+    }
+
+    setControlIcon(player.querySelector('.play-icon-btn'), true);
+
+    // animate the seek bar + time so it visibly looks like it's playing
+    var fill = player.querySelector('.seekbar .fill');
+    var thumb = player.querySelector('.seekbar .thumb');
+    var timeEl = player.querySelector('.time');
+    var totalSeconds = 142 * 60; // matches the 02:22:00 runtime shown on the page (Hibla 2's certified 142 min duration)
+    var elapsed = (typeof resumeSeconds === 'number' && resumeSeconds > 0 && resumeSeconds < totalSeconds)
+      ? resumeSeconds : 0;
+    clearInterval(player._playTimer);
+
+    function paint(){
+      var pct = (elapsed / totalSeconds * 100).toFixed(2) + '%';
+      if(fill) fill.style.width = pct;
+      if(thumb) thumb.style.left = pct;
+      if(timeEl) timeEl.textContent = formatTime(elapsed) + '/' + formatTime(totalSeconds);
+    }
+    paint(); // paint immediately at the resume point instead of waiting a second
+    player._elapsedSeconds = elapsed;
+    saveViewState(true, elapsed);
+
+    player._playTimer = setInterval(function(){
+      elapsed += 1;
+      if(elapsed >= totalSeconds){ elapsed = totalSeconds; clearInterval(player._playTimer); }
+      player._elapsedSeconds = elapsed;
+      paint();
+      saveViewState(true, elapsed); // keep the resume point fresh in case of a reload
+    }, 1000);
+  }
+
+  // paints one movie's title/poster/backdrop/meta into the hero box, and
+  // remembers it as the "currently loaded" movie for the play button and
+  // for state persistence (see saveViewState below). instant=true skips
+  // the image preload/fade and paints immediately — used when restoring
+  // state after the ad or a reload, so nothing flashes before it settles.
+  function applyMovieToHero(data, instant){
+    currentHeroMovie = data;
+    var mySeq = ++heroLoadSeq; // claim this paint's slot — stops a slow earlier click's image landing on top of a faster later one
+
+    var player = document.getElementById('heroPlayer');
+    var heroPoster = document.getElementById('heroPoster');
+    var heroTitle = document.getElementById('heroTitle');
+    var heroMeta = document.getElementById('heroMeta');
+    var watermark = document.getElementById('heroWatermark');
+
+    var title = data.title || '';
+    var poster = data.poster || '';
+    var backdrop = data.backdrop || '';
+    var bgUrl = backdrop || poster; // fall back to the poster if no backdrop was cached
+
+    // text updates never have to wait on a network image — paint these the
+    // instant a card is tapped so the switch always feels immediate, even
+    // on a slow connection where the backdrop itself takes a moment
+    if(heroTitle && title) heroTitle.textContent = title;
+    if(watermark && title) watermark.textContent = title.toUpperCase();
+    if(heroMeta && data.meta) heroMeta.textContent = data.meta;
+
+    if(player && bgUrl && !data.keepBackdrop){
+      var apply = function(){
+        if(mySeq !== heroLoadSeq) return; // a newer card was tapped before this image finished loading — skip it
+        player.style.backgroundImage =
+          'linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4) 65%, rgba(0,0,0,0.8)), url(' + bgUrl + ')';
+        player.style.backgroundSize = 'cover';
+        player.style.backgroundPosition = 'center 30%';
+        player.classList.remove('is-loading'); // fades back to full opacity via the CSS transition — the crossfade
+      };
+      if(instant){
+        apply();
+      } else {
+        // dim slightly the moment the tap happens (immediate feedback the
+        // click registered) instead of the player sitting frozen on the old
+        // image with no visible change until the new one finishes loading
+        player.classList.add('is-loading');
+        var img = new Image();
+        img.onload = apply;
+        img.onerror = function(){ if(mySeq === heroLoadSeq) player.classList.remove('is-loading'); };
+        img.src = bgUrl;
+      }
+    }
+    // BUGFIX: the small poster thumb used to swap straight to the new URL
+    // with no preloading ("instant" mode) — on a slow connection that left
+    // a blank gap for a moment before the image popped in, which read as
+    // part of the same "jitter" as the backdrop. Preload it first (guarded
+    // by the same sequence counter as everything else here) so by the time
+    // it's painted the browser already has the bytes and it appears cleanly.
+    if(heroPoster && poster){
+      if(instant){
+        setImage(heroPoster, poster, true);
+      } else {
+        var pImg = new Image();
+        pImg.onload = function(){
+          if(mySeq !== heroLoadSeq) return; // a newer card was tapped before this finished — skip it
+          setImage(heroPoster, poster, true);
+        };
+        pImg.onerror = function(){}; // leave the placeholder gradient if it fails
+        pImg.src = poster;
+      }
+    }
+
+    return player;
+  }
+
+  function extractMovieData(itemEl){
+    var langEl = itemEl.querySelector('.badge-lang');
+    var ratingEl = itemEl.querySelector('.badge-rating');
+    var parts = [];
+    if(langEl) parts.push(langEl.textContent.trim());
+    if(ratingEl) parts.push(ratingEl.textContent.trim());
+    return {
+      title: itemEl.dataset.title || (itemEl.querySelector('.carousel-title') || {}).textContent || '',
+      id: itemEl.dataset.id || '', // Grab the ID
+      type: itemEl.dataset.type || 'movie',
+      poster: itemEl.dataset.poster || '',
+      backdrop: itemEl.dataset.backdrop || '',
+      meta: parts.length ? parts.join('  •  ') : ''
+    };
+  }
+
+  // resets the player back to its paused, "not started yet" look — used
+  // when a different movie is loaded into the hero box so it doesn't
+  // keep showing progress from whatever was playing before
+  function resetPlayback(player){
+    if(!player) return;
+    player.classList.remove('is-playing');
+    clearInterval(player._playTimer);
+    clearTimeout(player._fadeTimer);
+    player._elapsedSeconds = 0;
+    var centerBtn = player.querySelector('.player-center');
+    if(centerBtn) centerBtn.style.opacity = '1';
+    setControlIcon(player.querySelector('.play-icon-btn'), false);
+    var fill = player.querySelector('.seekbar .fill');
+    var thumb = player.querySelector('.seekbar .thumb');
+    var timeEl = player.querySelector('.time');
+    if(fill) fill.style.width = '';
+    if(thumb) thumb.style.left = '';
+    if(timeEl) timeEl.textContent = '00:00/02:22:00';
+    // BUGFIX: switching to another movie card while a video was already
+    // embedded (the vidlink/YouTube <iframe>) left that old iframe sitting
+    // on top of the player, still playing, hiding the newly selected movie.
+    // resetPlayback() is exactly the function called right after a new
+    // card is loaded into the hero, so remove the old iframe here too.
+    var oldFrame = player.querySelector('.trailer-frame');
+    if(oldFrame) oldFrame.remove();
+    // that old iframe is gone, so any YT.Player wired to it is dead too —
+    // drop the reference or the sound button would try to command a
+    // detached player on the next click (silently does nothing, but keep it clean).
+    if(typeof clearYTPlayer === 'function') clearYTPlayer();
+    // whatever loads next always starts silent — keep the sound icon honest
+    if(typeof setSoundButtonUI === 'function') setSoundButtonUI(true);
+  }
+
+  // whichever movie is currently loaded into the hero box is tracked in
+  // currentHeroMovie (declared at the top of this script)
+
+  // ---- view-state persistence: survives a plain reload / "replace" ----
+  // so the visitor stays on the same movie, in the same play/pause state,
+  // instead of the page resetting back to the default on every refresh
+
+  function saveViewState(playing, elapsedSeconds){
+    try {
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({
+        movie: currentHeroMovie,
+        playing: !!playing,
+        elapsed: elapsedSeconds || 0
+      }));
+    } catch(e) { /* storage unavailable, fine */ }
+  }
+
+  // restores whichever movie + play state was last saved; returns true if
+  // there was something to restore
+  function restoreViewState(){
+    var raw;
+    try { raw = sessionStorage.getItem(STATE_KEY); } catch(e) { raw = null; }
+    if(!raw) return false;
+    var state;
+    try { state = JSON.parse(raw); } catch(e) { state = null; }
+    if(!state) return false;
+
+    var player = document.getElementById('heroPlayer');
+    if(state.movie) player = applyMovieToHero(state.movie, true); // instant: no flash before this paints
+
+    if(state.playing){
+      startPlayback(player, state.elapsed);
+    } else {
+      resetPlayback(player);
+    }
+    window.scrollTo(0, 0); // hero sits at the very top, so this always lands in the right spot, instantly
+    return true;
+  }
+
+  // ---- ad redirect + auto-resume on return ----
+
+  // remembers which movie should auto-play, then sends the visitor to the ad
+  function goToAdThenPlay(movieData){
+    if(adNavigating) return; // BUGFIX: a double-tap used to fire two redirects back to back
+    adNavigating = true;
+    setPendingAutoplay(movieData || { hero: true });
+    // Safety net: if the navigation is blocked (popup blocker, invalid/placeholder
+    // AD_URL, etc.) the page never unloads and the guard above would otherwise
+    // wedge the Play button forever — release it after a couple of seconds.
+    setTimeout(function(){ adNavigating = false; }, 2500);
+    window.location.href = AD_URL;
+  }
+
+  // same ad-redirect, but remembers "show this movie's YouTube trailer on return" instead of "resume playing it"
+  function goToAdThenTrailer(title){
+    if(adNavigating) return; // BUGFIX: same double-tap guard as goToAdThenPlay
+    adNavigating = true;
+    setPendingAutoplay({ action: 'trailer', title: title || '' });
+    window.location.href = AD_URL;
+  }
+
+  // looks up a movie's YouTube trailer key via TMDB: search by title -> get id -> get videos
+  function fetchTrailerKey(title, type){
+    if(!title) return Promise.resolve(null);
+    var mediaType = type || 'movie';
+    return fetchSafe(TMDB_BASE + '/search/' + mediaType + '?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(title))
+      .then(function(data){
+        var results = (data && data.results) || [];
+        if(!results.length) return null;
+        return fetchSafe(TMDB_BASE + '/' + mediaType + '/' + results[0].id + '/videos?api_key=' + TMDB_KEY);
+      })
+      .then(function(vdata){
+        var vids = (vdata && vdata.results) || [];
+        var trailer = vids.filter(function(v){ return v.site === 'YouTube' && v.type === 'Trailer'; })[0]
+          || vids.filter(function(v){ return v.site === 'YouTube'; })[0];
+        return trailer ? trailer.key : null;
+      });
+  }
+
+  // tiny ISO-8601 duration parser ("PT1H32M10S" -> seconds), no library needed
+  function parseISODurationSeconds(iso){
+    if(!iso) return 0;
+    var m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if(!m) return 0;
+    var h = parseInt(m[1] || 0, 10), mnt = parseInt(m[2] || 0, 10), s = parseInt(m[3] || 0, 10);
+    return h * 3600 + mnt * 60 + s;
+  }
+
+  // searches YouTube itself for a full-length upload of the movie (as
+  // opposed to a trailer/clip). Requires YOUTUBE_API_KEY above — without
+  // one this quietly resolves to null and the caller falls back to the
+  // trailer, exactly like before.
+  function fetchYouTubeFullMovie(title){
+    if(!YOUTUBE_API_KEY || !title) return Promise.resolve(null);
+
+    var searchUrl = 'https://www.googleapis.com/youtube/v3/search'
+      + '?part=snippet&type=video&maxResults=5&videoDuration=long'
+      + '&q=' + encodeURIComponent(title + ' full movie')
+      + '&key=' + YOUTUBE_API_KEY;
+
+    return fetchSafe(searchUrl).then(function(data){
+      var items = (data && data.items) || [];
+      var ids = items.map(function(it){ return it.id && it.id.videoId; }).filter(Boolean);
+      if(!ids.length) return null;
+
+      // videoDuration=long already limits the search to 20+ minute videos,
+      // but real movies run much longer than that — double-check the actual
+      // duration and only accept something genuinely movie-length (40+
+      // minutes), so a random long recap/analysis video doesn't get picked.
+      var detailsUrl = 'https://www.googleapis.com/youtube/v3/videos'
+        + '?part=contentDetails&id=' + ids.join(',')
+        + '&key=' + YOUTUBE_API_KEY;
+
+      return fetchSafe(detailsUrl).then(function(ddata){
+        var vids = (ddata && ddata.items) || [];
+        var match = vids.filter(function(v){
+          return parseISODurationSeconds(v.contentDetails && v.contentDetails.duration) >= 2400; // 40+ min
+        })[0];
+        return match ? match.id : null;
+      });
+    })['catch'](function(){ return null; });
+  }
+
+  // resolves what the auto-fallback should play: a full movie upload on
+  // YouTube if one can be found, otherwise the official trailer. Always
+  // resolves to { key, full } or null — never rejects.
+  function resolveYouTubeFallback(title, type){
+    if(type === 'tv'){
+      // "full movie" search makes no sense for a TV show — go straight to trailer
+      return fetchTrailerKey(title, 'tv').then(function(trailerKey){
+        return trailerKey ? { key: trailerKey, full: false } : null;
+      });
+    }
+    return fetchYouTubeFullMovie(title).then(function(fullKey){
+      if(fullKey) return { key: fullKey, full: true };
+      return fetchTrailerKey(title, 'movie').then(function(trailerKey){
+        return trailerKey ? { key: trailerKey, full: false } : null;
+      });
+    });
+  }
+
+  // BUGFIX: resolveYouTubeFallback chains up to 3 separate network calls
+  // (YouTube full-movie search -> YouTube video-details -> TMDB trailer
+  // search), and each one can take up to FETCH_TIMEOUT_MS (8s) on a slow
+  // connection before giving up. Used directly, that meant the VidLink
+  // player could sit there doing nothing for 15+ seconds before it even
+  // started loading the movie — which looked exactly like "not working".
+  // This wraps any promise with a short race: whichever finishes first
+  // (the real lookup, or the timer) wins. The slow lookup, if it loses,
+  // is simply left to finish quietly in the background and ignored.
+  function withTimeout(promise, ms){
+    return new Promise(function(resolve){
+      var done = false;
+      var timer = setTimeout(function(){
+        if(done) return;
+        done = true;
+        resolve(null);
+      }, ms);
+      promise.then(function(value){
+        if(done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      });
+    });
+  }
+
+  // swaps the hero box over to an embedded, autoplaying YouTube trailer
+  function playYouTubeTrailer(videoKey){
+    var player = document.getElementById('heroPlayer');
+    if(!player || !videoKey) return;
+    resetPlayback(player);
+    var old = player.querySelector('.trailer-frame');
+    if(old) old.remove();
+    var iframe = document.createElement('iframe');
+    iframe.className = 'trailer-frame';
+    // BUGFIX: browsers refuse to auto-start ANY video with sound unless it
+    // happens inside a direct, synchronous click — and this trailer always
+    // shows up after a redirect to the ad and back, which loses that click.
+    // Without mute=1 the browser was silently blocking the autoplay outright
+    // (frozen on the thumbnail) instead of just muting it. mute=1 is always
+    // allowed to autoplay, so the trailer now reliably starts; a tap on
+    // YouTube's own speaker icon in the player unmutes it.
+    // enablejsapi=1 + origin lets the sound toggle button talk to this
+    // iframe via postMessage (mute/unMute) after it has autoplayed muted.
+    iframe.id = YT_TRAILER_FRAME_ID;
+    iframe.src = 'https://www.youtube.com/embed/' + videoKey +
+      '?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1&origin=' +
+      encodeURIComponent(window.location.origin);
+    iframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; border:0; z-index:5;';
+    player.appendChild(iframe);
+    syncSoundToggleTarget();
+    // Wire up the real YouTube IFrame Player API on top of this exact
+    // iframe (same element, same src — nothing reloads). This gives the
+    // sound button a proper mute()/unMute() call instead of a raw guessed
+    // postMessage, which is what used to occasionally leave the click
+    // doing nothing or fighting the player. See attachYTPlayer() below.
+    if(typeof attachYTPlayer === 'function') attachYTPlayer();
+  }
+
+  // Handles both movie and TV playback through VidLink. TV shows default to
+  // season 1, episode 1 — there's no season/episode picker in the UI yet,
+  // so this is the sensible starting point (VidLink's own player still
+  // lets the visitor use its built-in episode list from there, if it
+  // offers one, to change episodes without leaving the embed).
+  function playVidLinkSource(id, type, fallbackTitle, season, episode){
+    var player = document.getElementById('heroPlayer');
+    if(!player || !id) return;
+    resetPlayback(player);
+
+    // Remove old iframe if it exists
+    var old = player.querySelector('.trailer-frame');
+    if(old) old.remove();
+
+    var isTV = type === 'tv';
+    var settled = false; // guards against the watchdog and a late load/error/fallback_url swap all firing
+    var watchdog = null;
+
+    // Fallback if nothing else worked (source totally unreachable, and
+    // VidLink's own fallback_url swap never happened either). Prefers a
+    // full movie upload on YouTube (movies only); only drops to the
+    // trailer if no full movie can be found (or no YOUTUBE_API_KEY is set),
+    // or always for TV shows, where a "full episode" search isn't reliable.
+    function fallbackToYouTubeTrailer(){
+      if(settled) return;
+      settled = true;
+      if(watchdog) clearTimeout(watchdog);
+      var frame = player.querySelector('.trailer-frame');
+      if(frame) frame.remove();
+      var title = fallbackTitle || (currentHeroMovie && currentHeroMovie.title) || '';
+      // Capped at 6s: still generous (we're already committed to finding
+      // *something* to show at this point), but bounded so a slow/blocked
+      // connection can't leave the player stuck blank for up to 32s while
+      // several chained API calls each burn their own 8s timeout.
+      withTimeout(resolveYouTubeFallback(title, type), 6000).then(function(result){
+        if(result){
+          playYouTubeTrailer(result.key);
+        } else {
+          // nothing found on YouTube either — return to the normal poster/play view
+          resetPlayback(player);
+        }
+      });
+    }
+
+    var title = fallbackTitle || (currentHeroMovie && currentHeroMovie.title) || '';
+
+    // BUGFIX: the real cause of the dead-end "We Couldn't Find This Content"
+    // screen is that VidLink's player detects a missing/broken source
+    // *inside its own iframe* — that iframe still finishes loading
+    // successfully (onload fires, no error), so the old onload/watchdog
+    // logic below never noticed anything was wrong; it can't peek inside
+    // a cross-origin iframe to see what's actually on screen.
+    // The fix: resolve YouTube's best available option first — a full
+    // movie upload if one exists, otherwise the trailer — then hand it to
+    // VidLink itself via its own `fallback_url` parameter. VidLink then
+    // does the "not found -> swap over" navigation internally, the moment
+    // *it* detects the problem, instead of us guessing from outside. The
+    // onload/onerror/watchdog below stays as a second line of defense for
+    // a fully unreachable source (DNS failure, server down).
+    //
+    // Capped at 1.2s (withTimeout) so this lookup can never delay the
+    // movie itself starting — on a slow connection we'd rather start the
+    // movie now without a fallback_url and lean on the onerror/watchdog
+    // backup than leave the visitor staring at a blank player for 15s.
+    withTimeout(resolveYouTubeFallback(title, type), 1200).then(function(result){
+      if(settled) return; // user already navigated elsewhere
+
+      // BUGFIX: VidLink's API expects autoplay as the word true/false, not
+      // 1/0 (autoplay=1 was silently ignored, so the movie never actually
+      // auto-started — the visitor had to tap VidLink's own play button
+      // every time, which is why it never seemed to "auto play with sound").
+      var src = isTV
+        ? ('https://vidlink.pro/tv/' + id + '/' + (season || 1) + '/' + (episode || 1) + '?autoplay=true')
+        : ('https://vidlink.pro/movie/' + id + '?autoplay=true');
+      if(result){
+        // Same mute=1 fix as playYouTubeTrailer() below — guarantees this
+        // fallback trailer actually starts instead of sitting frozen.
+        src += '&fallback_url=' + encodeURIComponent(
+          'https://www.youtube.com/embed/' + result.key +
+          '?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1&origin=' +
+          encodeURIComponent(window.location.origin)
+        );
+      }
+
+      var iframe = document.createElement('iframe');
+      iframe.className = 'trailer-frame';
+      iframe.src = src;
+      iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+      iframe.setAttribute('allowfullscreen', 'true');
+      iframe.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; border:0; z-index:10; background:#000;';
+      iframe.onload = function(){ settled = true; if(watchdog) clearTimeout(watchdog); };
+      iframe.onerror = fallbackToYouTubeTrailer;
+
+      // Watchdog: a fully broken/unreachable source (DNS failure, connection
+      // refused, server down) can end up never firing load OR error — don't
+      // wait forever for it. Kept short and silent: no message/spinner is
+      // ever shown at any point, it just quietly swaps to the trailer.
+      watchdog = setTimeout(fallbackToYouTubeTrailer, 4000);
+
+      player.appendChild(iframe);
+    });
+  }
+
+  function playVidLinkMovie(movieId, fallbackTitle){
+    playVidLinkSource(movieId, 'movie', fallbackTitle);
+  }
+
+  function playVidLinkTV(showId, fallbackTitle, season, episode){
+    playVidLinkSource(showId, 'tv', fallbackTitle, season, episode);
+  }
+
+  // Picks the right embed for whatever data (movie or tv) is being played —
+  // single place both the ad-return flow and anything else can call instead
+  // of checking data.type inline everywhere.
+  function playSource(id, type, title){
+    if(type === 'tv') playVidLinkTV(id, title);
+    else playVidLinkMovie(id, title);
+  }
+
+  // consumes the one-time "just came back from the ad" flag if present;
+  // returns true if it handled anything, so the caller can skip the plain
+  // reload-restore step below
+  function checkPendingAutoplay(){
+    var data = takePendingAutoplay();
+    if(!data) return false;
+
+    window.scrollTo(0, 0); // instant — no fighting with the browser's own back-navigation scroll jump
+
+    if(data.action === 'trailer'){
+      fetchTrailerKey(data.title, data.type).then(function(key){
+        if(key) playYouTubeTrailer(key);
+      });
+      return true;
+    }
+
+    var player = data.hero ? document.getElementById('heroPlayer') : applyMovieToHero(data, true); // instant paint
+
+    // BUGFIX: when returning from the ad for the *default* hero movie
+    // (data.hero === true), fillHero() was never called on this fresh
+    // page load (it's skipped up above whenever willRestore is true),
+    // so currentHeroMovie was still null here and the backdrop/id from
+    // TMDB never got applied — repaint it now. Because fillHero() checks
+    // cache.hero first, this paints instantly (no flicker) whenever the
+    // hero was already resolved earlier in the session, and it also
+    // fills in currentHeroMovie synchronously in that case.
+    if(data.hero) fillHero();
+
+    // Play the actual movie/show if we have an ID, otherwise fallback
+    if (data.id) {
+      playSource(data.id, data.type, data.title);
+    } else if (currentHeroMovie && currentHeroMovie.id) {
+      playSource(currentHeroMovie.id, currentHeroMovie.type, currentHeroMovie.title);
+    } else if (cache.hero && cache.hero.id) {
+      playSource(cache.hero.id, cache.hero.type, cache.hero.title);
+    } else {
+      startPlayback(player);
+    }
+    
+    return true;
+  }
+
+  // any movie below: loads it into the hero box exactly like the page's
+  // original movie — poster/backdrop/title swap in, play button showing,
+  // nothing "plays" yet and no ad happens until that play button is tapped.
+  // the player is already sticky at the top, so we don't scroll the page —
+  // that would cause an unwanted jump/jerk on every tap.
+  document.addEventListener('click', function(e){
+    var item = e.target.closest ? e.target.closest('.carousel-item') : null;
+    if(!item) return;
+    var data = extractMovieData(item);
+
+    // BUGFIX: tapping the same card that's already loaded in the hero
+    // (double-tap, or a card in more than one carousel) used to still tear
+    // down and rebuild everything — removing any playing iframe, resetting
+    // the seekbar, re-fetching the backdrop — for a movie that was already
+    // showing. That pointless reset is exactly what read as a "stutter".
+    var alreadyLoaded = !!(currentHeroMovie && data.id && currentHeroMovie.id === data.id);
+    if(!alreadyLoaded){
+      var player = applyMovieToHero(data);
+      resetPlayback(player);
+      saveViewState(false, 0);
+    }
+
+    // The hero box updates at the top of the page, but the page itself is
+    // never scrolled or jumped as a result — the card the visitor tapped,
+    // and everything else on screen, stays exactly where it is. No card
+    // shifts position, and nothing moves up or down.
+  });
+
+  // the hero box's own play button: this is the only thing that goes to
+  // the ad — for whichever movie is currently loaded — then auto-plays
+  // in place the instant the visitor comes back
+  var heroPlayBtn = document.getElementById('heroPlayBtn');
+  if(heroPlayBtn){
+    heroPlayBtn.addEventListener('click', function(){
+      goToAdThenPlay(currentHeroMovie);
+    });
+    heroPlayBtn.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        goToAdThenPlay(currentHeroMovie);
+      }
+    });
+  }
+
+  // Trailer action button: ad first, then the real YouTube trailer autoplays
+  // in the hero box the instant the visitor comes back
+  // BUGFIX: the small play/pause triangle inside the control bar had no
+  // click handler at all (dead button) — wire it to the same "go to ad,
+  // then play" action as the big center button so it actually works.
+  var smallPlayBtn = document.querySelector('.play-icon-btn');
+  if(smallPlayBtn){
+    smallPlayBtn.style.cursor = 'pointer';
+    smallPlayBtn.setAttribute('role', 'button');
+    smallPlayBtn.setAttribute('tabindex', '0');
+    smallPlayBtn.setAttribute('aria-label', 'Play');
+    smallPlayBtn.addEventListener('click', function(){
+      goToAdThenPlay(currentHeroMovie);
+    });
+    smallPlayBtn.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        goToAdThenPlay(currentHeroMovie);
+      }
+    });
+  }
+
+  // BUGFIX: the fullscreen icon in the control bar was purely decorative
+  // (no handler) — make it actually request fullscreen on the player.
+  var fullscreenBtn = document.querySelector('.fullscreen-icon');
+  if(fullscreenBtn){
+    fullscreenBtn.style.cursor = 'pointer';
+    fullscreenBtn.addEventListener('click', function(){
+      var el = document.getElementById('heroPlayer');
+      if(!el) return;
+      if(el.requestFullscreen) el.requestFullscreen();
+      else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    });
+  }
+
+  // Sound on/off toggle next to the title. YouTube-based players (the
+  // trailer, and the "movie not found" fallback trailer) always start
+  // muted so autoplay is never blocked by the browser — this button lets
+  // the visitor turn that sound on with one tap, and back off again.
+  // VidLink's own movie iframe is cross-origin with no exposed audio API,
+  // so it isn't controllable from here; the toggle simply has no effect
+  // on that specific player until VidLink adds a postMessage API of its own.
+  var soundBtn = document.getElementById('soundToggleBtn');
+  // Every fresh video (YouTube trailer OR the VidLink movie) always starts
+  // muted — YouTube because browsers only allow autoplay-with-sound inside
+  // a direct click, and VidLink because it isn't controllable from here at
+  // all. So the button's true, honest starting state is always "muted",
+  // and it only ever flips because the visitor tapped it themselves.
+  var soundMuted = true;
+
+  function currentYouTubeFrame(){
+    var player = document.getElementById('heroPlayer');
+    var frame = player && player.querySelector('.trailer-frame');
+    return (frame && /youtube\.com/.test(frame.src)) ? frame : null;
+  }
+
+  // ---- real YouTube IFrame Player API wiring ----
+  // BUGFIX: the sound button used to send a hand-built postMessage command
+  // straight to the iframe and just hope YouTube's embed caught it. That
+  // works most of the time, but on some connections/browsers the embed
+  // hadn't finished its own internal handshake yet, so the message was
+  // silently dropped — which could make the button look like it "did
+  // nothing", or, on a slower phone, visibly stutter the video for a beat
+  // while the ignored command still nudged the player's internal state.
+  // Attaching a real YT.Player to the SAME iframe element (same id, same
+  // src — nothing reloads or restarts) gives the button an actual
+  // mute()/unMute() call that YouTube's own script manages, so it can
+  // never pause, seek, or restart the video — it only ever toggles audio.
+  var YT_TRAILER_FRAME_ID = 'heroYtTrailerFrame';
+  var ytPlayer = null;
+  var ytApiReady = false;
+  var ytAttachPending = false;
+
+  (function loadYouTubeIframeApi(){
+    if(window.YT && window.YT.Player){ ytApiReady = true; return; }
+    if(document.getElementById('ytIframeApiScript')) return; // already loading
+    var tag = document.createElement('script');
+    tag.id = 'ytIframeApiScript';
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  })();
+
+  // YouTube calls this global exactly once, whenever the API finishes
+  // loading — chain into whatever the page already set (harmless if none).
+  var _priorYTReady = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = function(){
+    ytApiReady = true;
+    if(typeof _priorYTReady === 'function'){ try{ _priorYTReady(); }catch(e){} }
+    if(ytAttachPending) attachYTPlayer();
+  };
+
+  function clearYTPlayer(){
+    ytPlayer = null;
+    ytAttachPending = false;
+  }
+
+  // Attaches (does NOT create/reload) a YT.Player onto the trailer iframe
+  // that's already sitting in the DOM and already autoplaying. Per
+  // YouTube's own docs, passing an existing iframe element/id to
+  // `new YT.Player()` just takes control of it in place — the video
+  // keeps playing exactly as it was, nothing reloads or jumps back to 0:00.
+  function attachYTPlayer(){
+    if(!ytApiReady || !window.YT || !window.YT.Player){
+      ytAttachPending = true; // API script still loading — try again once it's ready
+      return;
+    }
+    var el = document.getElementById(YT_TRAILER_FRAME_ID);
+    if(!el) return;
+    ytAttachPending = false;
+    try{
+      ytPlayer = new YT.Player(YT_TRAILER_FRAME_ID, {});
+    }catch(e){ ytPlayer = null; }
+  }
+
+  // Paints the button to a given state WITHOUT touching any video — used
+  // to keep the icon honest whenever a new player (trailer or movie) is
+  // loaded, since that new player always starts silent regardless of what
+  // the button showed for the previous one.
+  function setSoundButtonUI(muted){
+    soundMuted = muted;
+    if(!soundBtn) return;
+    soundBtn.classList.toggle('is-muted', muted);
+    soundBtn.setAttribute('aria-pressed', String(muted));
+    soundBtn.setAttribute('aria-label', muted ? 'সাউন্ড বন্ধ আছে, চালু করতে ট্যাপ করুন' : 'সাউন্ড চালু আছে, বন্ধ করতে ট্যাপ করুন');
+  }
+
+  // Called right after a fresh YouTube trailer iframe is created. It never
+  // starts sound on its own (that would fight the browser's autoplay rules
+  // and can make the video visibly stutter/reset) — it just makes sure the
+  // button is showing "muted", which is the video's real, current state.
+  function syncSoundToggleTarget(){
+    setSoundButtonUI(true);
+  }
+
+  // The actual mute/unmute action — pulled out into its own function so
+  // both a plain tap AND the drag-vs-tap logic below can call it, without
+  // duplicating the YouTube API / postMessage handling.
+  function toggleSound(){
+    // Only a YouTube trailer iframe is controllable; toggle it if present.
+    // If there's none (e.g. the main VidLink movie, or nothing loaded
+    // yet), the tap still just flips the icon and does nothing else —
+    // it never pauses, reloads, or restarts anything.
+    var nextMuted = !soundMuted;
+    if(ytPlayer && typeof ytPlayer.mute === 'function' && typeof ytPlayer.unMute === 'function'){
+      // Preferred path: the real player API. mute()/unMute() only ever
+      // touch volume — they can't pause, seek, or reload the video.
+      try{
+        if(nextMuted) ytPlayer.mute(); else ytPlayer.unMute();
+      }catch(e){}
+    } else {
+      // Fallback for the brief window before the API script has finished
+      // loading (or if it fails to load at all) — same as before, a
+      // direct postMessage. Still only a mute/unMute command, nothing else.
+      var frame = currentYouTubeFrame();
+      if(frame){
+        try{
+          frame.contentWindow.postMessage(JSON.stringify({
+            event:'command',
+            func: nextMuted ? 'mute' : 'unMute',
+            args:[]
+          }), '*');
+        }catch(e){}
+      }
+    }
+    setSoundButtonUI(nextMuted);
+  }
+
+  // Draggable sound button — it always STARTS in the design's default
+  // spot (top-right corner of the video box), exactly as before. A quick
+  // tap still just toggles sound. But if the visitor presses and holds
+  // then moves their finger/mouse, the button follows and can be dropped
+  // anywhere inside the video box; that chosen spot is remembered (per
+  // browser) so it stays there on the next visit instead of snapping back.
+  if(soundBtn){
+    var playerBox = document.getElementById('heroPlayer');
+    var DRAG_THRESHOLD = 6; // px of movement before a tap counts as a drag
+    var dragState = null;
+    var SOUND_BTN_POS_KEY = 'soundBtnPos';
+
+    function clampAndPlaceSoundBtn(leftPx, topPx){
+      var rect = playerBox.getBoundingClientRect();
+      var btnW = soundBtn.offsetWidth || 36;
+      var btnH = soundBtn.offsetHeight || 36;
+      leftPx = Math.max(0, Math.min(leftPx, rect.width - btnW));
+      topPx = Math.max(0, Math.min(topPx, rect.height - btnH));
+      soundBtn.style.right = 'auto';
+      soundBtn.style.left = leftPx + 'px';
+      soundBtn.style.top = topPx + 'px';
+      return { left:leftPx, top:topPx, containerW:rect.width, containerH:rect.height };
+    }
+
+    function saveSoundBtnPosition(pos){
+      try{
+        localStorage.setItem(SOUND_BTN_POS_KEY, JSON.stringify({
+          leftPct: pos.left / pos.containerW,
+          topPct: pos.top / pos.containerH
+        }));
+      }catch(e){}
+    }
+
+    // Only moves the button if the visitor has actually dragged it before
+    // in this browser — otherwise it's left alone in its default CSS spot
+    // (top-right corner), which is exactly the "new/unused" state.
+    function restoreSoundBtnPosition(){
+      var raw;
+      try{ raw = localStorage.getItem(SOUND_BTN_POS_KEY); }catch(e){ raw = null; }
+      if(!raw) return;
+      var data;
+      try{ data = JSON.parse(raw); }catch(e){ return; }
+      if(!data || typeof data.leftPct !== 'number' || typeof data.topPct !== 'number') return;
+      var rect = playerBox.getBoundingClientRect();
+      clampAndPlaceSoundBtn(data.leftPct * rect.width, data.topPct * rect.height);
+    }
+
+    // Re-clamp a saved position on resize/orientation change so it can
+    // never end up partly outside the (possibly now-smaller) video box.
+    window.addEventListener('resize', restoreSoundBtnPosition);
+
+    restoreSoundBtnPosition();
+
+    soundBtn.addEventListener('pointerdown', function(e){
+      if(e.button !== undefined && e.button !== 0) return; // primary touch/left click only
+      var rect = playerBox.getBoundingClientRect();
+      var btnRect = soundBtn.getBoundingClientRect();
+      dragState = {
+        moved:false,
+        startX:e.clientX,
+        startY:e.clientY,
+        startLeft: btnRect.left - rect.left,
+        startTop: btnRect.top - rect.top,
+        pointerId:e.pointerId
+      };
+      try{ soundBtn.setPointerCapture(e.pointerId); }catch(err){}
+    });
+
+    soundBtn.addEventListener('pointermove', function(e){
+      if(!dragState || dragState.pointerId !== e.pointerId) return;
+      var dx = e.clientX - dragState.startX;
+      var dy = e.clientY - dragState.startY;
+      if(!dragState.moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)){
+        dragState.moved = true;
+        soundBtn.classList.add('is-dragging');
+      }
+      if(dragState.moved){
+        e.preventDefault();
+        clampAndPlaceSoundBtn(dragState.startLeft + dx, dragState.startTop + dy);
+      }
+    });
+
+    function endSoundBtnDrag(e){
+      if(!dragState || dragState.pointerId !== e.pointerId) return;
+      var wasDrag = dragState.moved;
+      soundBtn.classList.remove('is-dragging');
+      if(wasDrag){
+        var rect = playerBox.getBoundingClientRect();
+        var btnRect = soundBtn.getBoundingClientRect();
+        saveSoundBtnPosition({
+          left: btnRect.left - rect.left,
+          top: btnRect.top - rect.top,
+          containerW: rect.width,
+          containerH: rect.height
+        });
+      }
+      dragState = null;
+      // No movement at all -> this was a plain tap, so toggle sound exactly
+      // as the button always did.
+      if(!wasDrag) toggleSound();
+    }
+
+    soundBtn.addEventListener('pointerup', endSoundBtnDrag);
+    soundBtn.addEventListener('pointercancel', endSoundBtnDrag);
+  }
+
+  var trailerBtn = document.getElementById('trailerBtn');
+  // Trailer button: no ad redirect anymore — it fetches and plays the
+  // trailer directly in the hero player, same lookup TMDB uses via
+  // fetchTrailerKey(), just without the AD_URL round trip beforehand.
+  function playTrailerNow(title, type){
+    fetchTrailerKey(title, type).then(function(key){
+      if(key) playYouTubeTrailer(key);
+    });
+  }
+  if(trailerBtn){
+    trailerBtn.addEventListener('click', function(){
+      var title = (currentHeroMovie && currentHeroMovie.title) ||
+        (document.getElementById('heroTitle') || {}).textContent || '';
+      playTrailerNow(title, currentHeroMovie && currentHeroMovie.type);
+    });
+    trailerBtn.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        var title = (currentHeroMovie && currentHeroMovie.title) ||
+          (document.getElementById('heroTitle') || {}).textContent || '';
+        playTrailerNow(title, currentHeroMovie && currentHeroMovie.type);
+      }
+    });
+  }
+
+  // on every load — first refresh/plain reload, a hard "replace", or a
+  // fresh navigation — restore whatever the visitor was last looking at.
+  // The one-time ad-return flag (if present) wins over the general state,
+  // since it's the more specific "just tapped play, went to the ad" case.
+  function restoreOnLoad(){
+    if(!checkPendingAutoplay()) restoreViewState();
+  }
+  restoreOnLoad();
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){
+      adNavigating = false; // BUGFIX: coming back via back/forward cache must re-enable Play
+      window.scrollTo(0, 0);
+      restoreOnLoad();
+    }
+  });
+
+  // everything else loads only as the user scrolls near it, so the page
+  // never fires 30+ image requests at once and stays smooth on slow connections
+  var carouselConfig = [
+    { id: 'carousel-filipino',      mode: 'discover', type: 'movie', params: 'with_original_language=tl' },
+    { id: 'carousel-cheating-wife', mode: 'search',   type: 'movie', query: 'cheating wife' },
+    { id: 'carousel-korean',        mode: 'discover', type: 'movie', params: 'with_original_language=ko' },
+    { id: 'carousel-trending',      mode: 'discover', type: 'movie', params: 'vote_count.gte=300' },
+    { id: 'carousel-hindi',         mode: 'discover', type: 'movie', params: 'with_original_language=hi' },
+    { id: 'carousel-tv-popular',    mode: 'discover', type: 'tv',    params: 'vote_count.gte=100' },
+    { id: 'carousel-tv-korean',     mode: 'discover', type: 'tv',    params: 'with_original_language=ko' }
+  ];
+
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(!entry.isIntersecting) return;
+        var cfg = carouselConfig.filter(function(c){ return c.id === entry.target.id; })[0];
+        if(cfg) fillCarousel(entry.target, cfg);
+        io.unobserve(entry.target);
+      });
+    }, { rootMargin: '400px 0px' }); // start loading well before it's on screen
+
+    carouselConfig.forEach(function(cfg){
+      var el = document.getElementById(cfg.id);
+      if(!el) return;
+      if(cache[cfg.id]){
+        // already seen this session (e.g. back from an ad / play link) -> paint
+        // now, instantly, instead of waiting on scroll so nothing pops in later
+        fillCarousel(el, cfg);
+      } else {
+        io.observe(el);
+      }
+    });
+  } else {
+    // no IntersectionObserver support: fall back to loading them all
+    carouselConfig.forEach(function(cfg){
+      fillCarousel(document.getElementById(cfg.id), cfg);
+    });
+  }
+})();
+</script>
+</body>
+</html>
